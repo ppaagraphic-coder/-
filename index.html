@@ -3,6 +3,8 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#0f6b5c">
+<meta name="format-detection" content="telephone=no">
 <title>ใบส่งมอบงาน / ตรวจรับงาน</title>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+Thai:wght@400;600;700&display=swap" rel="stylesheet">
 <style>
@@ -58,9 +60,18 @@ input[type=range]{width:100%}
 .sig .box{cursor:pointer}
 #out{max-width:100%;border:1px solid var(--bd)}
 .gap{display:flex;gap:8px;margin-top:12px;flex-wrap:wrap}
+html{-webkit-text-size-adjust:100%;text-size-adjust:100%}
+body{font-family:'Noto Sans Thai','Sarabun','Thonburi','Tahoma',sans-serif;-webkit-tap-highlight-color:transparent}
+#paper{font-family:'Noto Sans Thai','Sarabun','Thonburi','Tahoma',sans-serif}
+input[type=text],input[type=datetime-local],textarea{-webkit-appearance:none;appearance:none;border-radius:6px}
+input[type=datetime-local]{min-height:42px;min-width:0;text-align:left;display:block}
+button,.btn,input[type=range]{touch-action:manipulation}
+#iab{display:none;background:#fff3cd;color:#4a3b00;border:1px solid #e0c060;border-radius:8px;padding:10px 12px;margin:12px 16px 0;font-size:14px}
+#iab button{float:right;padding:0 8px;margin-left:8px}
 </style>
 </head>
 <body>
+<div id="iab"><button type="button" onclick="this.parentNode.style.display='none'">×</button>เปิดอยู่ในเบราว์เซอร์ของแอป (LINE/Facebook ฯลฯ) ปุ่มดาวน์โหลดอาจใช้ไม่ได้ แนะนำให้เปิดด้วย Safari (iPhone) หรือ Chrome (Android)</div>
 <div class="app">
 <section class="panel">
 <h1>ใบส่งมอบงาน / ตรวจรับงาน</h1>
@@ -124,7 +135,10 @@ input[type=range]{width:100%}
 <script src="https://cdnjs.cloudflare.com/ajax/libs/html2canvas/1.4.1/html2canvas.min.js"></script>
 <script>
 const $=s=>document.querySelector(s), $$=s=>[...document.querySelectorAll(s)];
-const fmt=d=>d.toLocaleString('th-TH',{dateStyle:'long',timeStyle:'short'})+' น.';
+const TM=['มกราคม','กุมภาพันธ์','มีนาคม','เมษายน','พฤษภาคม','มิถุนายน','กรกฎาคม','สิงหาคม','กันยายน','ตุลาคม','พฤศจิกายน','ธันวาคม'];
+const p2=n=>String(n).padStart(2,'0');
+const fmt=d=>d.getDate()+' '+TM[d.getMonth()]+' '+(d.getFullYear()+543)+' '+p2(d.getHours())+':'+p2(d.getMinutes())+' น.';
+if(/Line\/|FBAN|FBAV|Instagram|MicroMessenger/i.test(navigator.userAgent))$('#iab').style.display='block';
 const S={A:{img:null,orig:null,t:null},B:{img:null,orig:null,t:null}};
 
 // ค่าเริ่มต้นวันที่
@@ -151,7 +165,8 @@ function fit(){
   $('#paper').style.transform=`scale(${s})`;
   $('#frame').style.width=794*s+'px'; $('#frame').style.height=1123*s+'px';
 }
-addEventListener('resize',fit);
+addEventListener('resize',fit);addEventListener('orientationchange',()=>setTimeout(fit,300));
+if(document.fonts&&document.fonts.ready)document.fonts.ready.then(fit);
 
 // ตัดขอบว่างรอบลายเซ็น
 function trim(c){
@@ -183,6 +198,7 @@ $('#thr').addEventListener('input',reproc);
 $$('[data-file]').forEach(inp=>inp.addEventListener('change',e=>{
   const k=inp.dataset.file,f=e.target.files[0]; if(!f)return;
   const im=new Image(); im.onload=()=>{S[k].orig=im;S[k].img=clean(im,+$('#thr').value);S[k].t=new Date();render();inp.value=''};
+  im.onerror=()=>{alert('เปิดรูปนี้ไม่ได้ ลองเลือกรูปอื่น (JPG/PNG)');inp.value=''};
   im.src=URL.createObjectURL(f);
 }));
 $$('[data-clr]').forEach(b=>b.onclick=()=>{const k=b.dataset.clr;S[k]={img:null,orig:null,t:null};render()});
@@ -216,17 +232,23 @@ let blob=null;
 $('#exp').onclick=async()=>{
   const btn=$('#exp');btn.textContent='กำลังสร้างรูป...';btn.disabled=true;
   try{
-    await document.fonts.ready;
+    try{await document.fonts.ready}catch(e){}
+    if(typeof html2canvas==='undefined')throw 0;
     const c=$('#paper').cloneNode(true);c.style.transform='none';
     const h=document.createElement('div');h.style.cssText='position:fixed;left:-9999px;top:0';h.append(c);document.body.append(h);
-    const cvs=await html2canvas(c,{scale:3,backgroundColor:'#fff'});h.remove();
-    blob=await new Promise(r=>cvs.toBlob(r,'image/png'));
+    let b=null;
+    for(const sc of [3,2,1.5,1]){
+      try{const cvs=await html2canvas(c,{scale:sc,backgroundColor:'#fff',useCORS:true,logging:false});
+        b=await new Promise(r=>cvs.toBlob(r,'image/png'));cvs.width=cvs.height=0;if(b)break}catch(e){}
+    }
+    h.remove();if(!b)throw 0;blob=b;
     $('#out').src=URL.createObjectURL(blob);$('#exp').after($('#outOv'));$('#outOv').classList.add('on');$('#outOv').scrollIntoView({block:'start',behavior:'smooth'});
-  }catch(err){alert('สร้างรูปไม่สำเร็จ ลองใหม่อีกครั้ง')}
+  }catch(err){alert('สร้างรูปไม่สำเร็จ ตรวจสอบอินเทอร์เน็ตแล้วลองใหม่อีกครั้ง')}
   btn.textContent='สร้างรูปภาพ';btn.disabled=false;
 };
 const fname=()=>'ใบส่งมอบงาน_'+($('#docNo').value||'doc')+'.png';
-$('#dl').onclick=()=>{const a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=fname();a.click()};
+$('#dl').onclick=()=>{const u=URL.createObjectURL(blob),a=document.createElement('a');a.href=u;a.download=fname();document.body.append(a);a.click();a.remove();setTimeout(()=>URL.revokeObjectURL(u),5000)};
+if(!navigator.share)$('#sh').style.display='none';
 $('#sh').onclick=async()=>{
   const f=new File([blob],fname(),{type:'image/png'});
   try{ if(navigator.canShare&&navigator.canShare({files:[f]}))await navigator.share({files:[f],title:fname()}); else alert('เครื่องนี้ไม่รองรับการแชร์ กรุณากดดาวน์โหลด') }catch(e){}
